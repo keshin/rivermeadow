@@ -21,7 +21,9 @@
 
 package com.rivermeadow.util;
 
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,52 +46,73 @@ import java.util.regex.Pattern;
 public class PropertiesParser {
   
   /** A RegEx pattern for a key subst: ${key} */
-  private final String PATTERN = "${.*}";
+  private final String PATTERN = "\\$\\{[^\\$\\{\\}]+\\}";
+  private final Pattern pattern = Pattern.compile(PATTERN);
   private final Properties props;
+
+  // for circular reference check
+  private final ThreadLocal<Set<String>> parsedKey = new ThreadLocal<Set<String>>();
   
   public PropertiesParser(Properties props) {
     this.props = props;
   }
   
   public void parse() {
+    parsedKey.set(new HashSet<String>());
     for (String key : props.stringPropertyNames()) {
       String value = props.getProperty(key);
-      if (hasSubstKey(value))
+      if (hasSubstKey(value)) {
         value = applyPattern(value);
+        props.setProperty(key, value);
+      }
     }
+    parsedKey.remove();
   }
   
   /**
    * Executes string substitution for the {@code value}
    *
-   * @param value
+   * @param value key
    * @return the fully substituted value, if possible
    */
   protected String applyPattern(String value) {
-    Pattern keyPattern = Pattern.compile(Pattern.quote(PATTERN));
-    Matcher m = keyPattern.matcher(value);
+    Matcher m = pattern.matcher(value);
     StringBuilder sb = new StringBuilder();
-    
-    if (m.find()) {
-      int curPos = 0;
-	sb.append(value.substring(curPos, m.start()))
-        .append(extractKeyValue(m.group()));
-      sb.append(value.substring(m.end()));
+
+    int curPos = 0;
+    while (m.find()) {
+	    sb.append(value.substring(curPos, m.start()))
+            .append(extractKeyValue(m.group()));
+        curPos = m.end();
     }
+
+    sb.append(value.substring(curPos));
     return sb.toString();
   }
   
   /** Replaces the subst key with its value, if available in {@code props} */
   // TODO: improve javadoc
   private String extractKeyValue(String key) {
-	return "";
+    if (key.length() > 3) {
+        Set<String> parsed = parsedKey.get();
+        if (parsed.contains(key)) {
+            // circular reference, break;
+            return key;
+        }
+        parsed.add(key);
+        String name = key.substring(2, key.length() - 1);
+        String property = props.getProperty(name);
+        if (hasSubstKey(property)) {
+            property = applyPattern(property);
+            props.setProperty(name, property);
+        }
+        return property;
+    } else {
+        return key;
+    }
   }
   
   private boolean hasSubstKey(String value) {
-	if (props.containsValue(value)) {
-		return true;
-	} else {
-		return false;
-	}
+    return pattern.matcher(value).find();
   }
 }

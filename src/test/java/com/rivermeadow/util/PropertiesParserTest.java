@@ -2,10 +2,8 @@ package com.rivermeadow.util;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.regex.Pattern;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -23,10 +21,11 @@ public class PropertiesParserTest {
 	}
 	
 	@Test
-	public void testParse() throws FileNotFoundException, IOException {
+	public void testParse() throws IOException {
 		props.load(PropertiesParserTest.class.getClassLoader().getResourceAsStream("test.properties"));
 		propertiesParser.parse();
 		
+		assertEquals("foo is bar", props.getProperty("abc"));
 		assertEquals("foo is bar", props.getProperty("baz"));
 	}
 }
